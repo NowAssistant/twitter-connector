@@ -1,0 +1,3 @@
+ServiceName: feed
+InterfaceName: items
+Description: Twitter feed

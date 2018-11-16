@@ -1,0 +1,11 @@
+{
+  "name": "Cisco Twitter",
+  "version": "0.1.0",
+  "description": "",
+  "main": "proxy.js",
+  "dependencies": {
+    "autolinker": "^1.7.1",
+    "moment": "^2.22.2"
+  },
+  "devDependencies": {}
+}
