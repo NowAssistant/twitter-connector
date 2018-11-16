@@ -83,12 +83,7 @@ module.exports = async activity => {
             date: new Date(_item.created_at).toISOString()
         };
 
-        item.age = moment(item.date).fromNow(true)
-            .replace(/ (second)(s\b|\b)/, 's')
-            .replace(/ (minute)(s\b|\b)/, 'm')
-            .replace(/ (hour)(s\b|\b)/, 'h')
-            .replace(/ (day)(s\b|\b)/, 'd')
-            .replace(/ (year)(s\b|\b)/, 'y');
+        item.age = moment(item.date).fromNow(true);
 
         if (_item.entities.media) {
             item.thumbnail = _item.entities.media[0].media_url_https;
