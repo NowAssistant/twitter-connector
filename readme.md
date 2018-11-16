@@ -1,3 +1,3 @@
-Cisco Twitter Connecor
+Twitter Connector
 ===
 

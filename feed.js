@@ -13,7 +13,7 @@ module.exports = async activity => {
             for (let i = 0; i < sources.length; i++) {
                 const endpoint = 
                     activity.Context.connector.endpoint + 
-                    '?screen_name=' + sources[i] + '&count=10';
+                    '?screen_name=' + sources[i] + '&count=10&tweet_mode=extended';
 
                 const response = await got(endpoint, {
                     headers: {
@@ -22,6 +22,8 @@ module.exports = async activity => {
                 });
 
                 const json = JSON.parse(response.body);
+
+                console.log(json);
 
                 for (let i = 0; i < json.length; i++) {
                     items.push(
@@ -74,7 +76,7 @@ module.exports = async activity => {
                 name: _item.user.name
             },
             id: _item.id,
-            text: Autolinker.link(_item.text, {
+            text: Autolinker.link(_item.full_text, {
                 hashtag: 'twitter',
                 mention: 'twitter'
             }),
@@ -83,31 +85,41 @@ module.exports = async activity => {
             date: new Date(_item.created_at).toISOString()
         };
 
-        item.age = moment(item.date).fromNow(true);
+        item.age = moment(item.date).fromNow(true)
+            .replace('an', '1')
+            .replace('a', '1')
+            .replace(/ (second)(s\b|\b)/, 's')
+            .replace(/ (minute)(s\b|\b)/, 'm')
+            .replace(/ (hour)(s\b|\b)/, 'h')
+            .replace(/ (day)(s\b|\b)/, 'd')
+            .replace(/ (year)(s\b|\b)/, 'y');
 
-        if (_item.entities.media) {
-            item.thumbnail = _item.entities.media[0].media_url_https;
+        if (_item.extended_entities && _item.extended_entities.media) {
+            item.thumbnail = _item.extended_entities.media[0].media_url_https;
         }
 
         if (_item.entities.symbols && _item.entities.symbols.length > 0) {
             const regex = /\$[A-Za-z]{1,6}([._][A-Za-z]{1,2})?/g;
-            const matches = _item.text.match(regex);
+            const matches = _item.full_text.match(regex);
 
             if (matches) {
                 for (let i = 0; i < matches.length; i++) {
                     const norm = matches[i].replace('$', '%24');
 
-                    item.text = item.text.replace(
-                        matches[i],
-                        '<a href="https://twitter.com/search?q=' + 
-                        norm + 
-                        '" target="_blank" rel="noopener noreferrer">' + 
-                        matches[i] + 
-                        '</a>'
-                    );
+                    item.text = item.text
+                        .replace(
+                            matches[i],
+                            '<a href="https://twitter.com/search?q=' + 
+                            norm + 
+                            '" target="_blank" rel="noopener noreferrer">' + 
+                            matches[i] + 
+                            '</a>');
                 }
             }
         }
+
+        item.text = item.text
+            .replace(/<a href/g, '<a class="blue" href');
 
         return item;
     }
