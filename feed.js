@@ -23,8 +23,6 @@ module.exports = async activity => {
 
                 const json = JSON.parse(response.body);
 
-                console.log(json);
-
                 for (let i = 0; i < json.length; i++) {
                     items.push(
                         convert_item(json[i])
