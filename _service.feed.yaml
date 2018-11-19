@@ -1,3 +1,4 @@
 ServiceName: feed
 InterfaceName: items
 Description: Twitter feed
+Interfaces: 'pagination, daterange'
