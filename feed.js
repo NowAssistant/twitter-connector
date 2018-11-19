@@ -15,7 +15,7 @@ module.exports = async activity => {
 
         if (token) {
             const sources = activity.Context.connector.custom3.split(',');
-            
+
             let items = [];
 
             configure_range();
@@ -23,7 +23,7 @@ module.exports = async activity => {
             for (let i = 0; i < sources.length; i++) {
                 const endpoint = 
                     activity.Context.connector.endpoint + 
-                    '?screen_name=' + sources[i];
+                    '?screen_name=' + sources[i] + '&tweet_mode=extended';
 
                 const response = await got(endpoint, {
                     headers: {
@@ -142,6 +142,14 @@ function rfc_encode(key) {
         .replace(/\(/g, '%28')
         .replace(/\)/g, '%29')
         .replace(/\*/g, '%2A');
+}
+
+function convert_date(date) {
+    return new Date(
+        date.substring(0, 4),
+        date.substring(4, 6) - 1,
+        date.substring(6, 8)
+    );
 }
 
 function skip(i, length, date) {
