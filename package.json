@@ -1,11 +1,11 @@
 {
-  "name": "Cisco Twitter",
+  "name": "adenin-twitter-connector",
   "version": "0.1.0",
   "description": "",
-  "main": "proxy.js",
+  "main": "feed.js",
   "dependencies": {
     "autolinker": "^1.7.1",
+    "got": "^9.3.2",
     "moment": "^2.22.2"
-  },
-  "devDependencies": {}
+  }
 }
