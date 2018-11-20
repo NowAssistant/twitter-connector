@@ -13,17 +13,21 @@ module.exports = async activity => {
     try {
         const token = await access_token();
 
+        console.log(activity);
+
         if (token) {
-            const sources = activity.Context.connector.custom3.split(',');
+            const accounts = activity.Context.connector.custom2.split(',');
+            const hashtags = activity.Context.connector.custom3.split(',');
 
             let items = [];
 
             configure_range();
 
-            for (let i = 0; i < sources.length; i++) {
+            for (let i = 0; i < accounts.length; i++) {
                 const endpoint = 
                     activity.Context.connector.endpoint + 
-                    '?screen_name=' + sources[i] + '&tweet_mode=extended';
+                    '/statuses/user_timeline.json?screen_name=' + accounts[i] + 
+                    '&tweet_mode=extended';
 
                 const response = await got(endpoint, {
                     headers: {
@@ -36,6 +40,27 @@ module.exports = async activity => {
                 for (let i = 0; i < json.length; i++) {
                     items.push(
                         convert_item(json[i])
+                    );
+                }
+            }
+
+            for (let i = 0; i < hashtags.length; i++) {
+                const endpoint = 
+                    activity.Context.connector.endpoint + 
+                    '/search/tweets.json?q=%23' + hashtags[i] + 
+                    '&tweet_mode=extended';
+
+                const response = await got(endpoint, {
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+
+                const json = JSON.parse(response.body);
+
+                for (let i = 0; i < json.statuses.length; i++) {
+                    items.push(
+                        convert_item(json.statuses[i])
                     );
                 }
             }
@@ -72,12 +97,12 @@ module.exports = async activity => {
         };
     }
 
-    return activity.Response.Data.items; // support cloud connectors
+    return activity; // support cloud connectors
 
     async function access_token() {
         const credentials = new Buffer.from(
-            rfc_encode(activity.Context.connector.custom1) + ':' + 
-            rfc_encode(activity.Context.connector.custom2)
+            rfc_encode(activity.Context.connector.clientId) + ':' + 
+            rfc_encode(activity.Context.connector.custom1)
         ).toString('base64');
 
         const opts = {
