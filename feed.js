@@ -1,6 +1,12 @@
 const got = require('got');
 const Autolinker = require('autolinker');
-const moment = require('moment');
+
+const dateDescending = (a, b) => {
+    a = new Date(a.date);
+    b = new Date(b.date);
+        
+    return a > b ? -1 : (a < b ? 1 : 0);
+}
 
 let startDate = null;
 let endDate = null;
@@ -12,8 +18,6 @@ let pageSize = null;
 module.exports = async activity => {
     try {
         const token = await access_token();
-
-        console.log(activity);
 
         if (token) {
             const accounts = activity.Context.connector.custom2.split(',');
@@ -153,11 +157,50 @@ module.exports = async activity => {
     }
 };
 
-const dateDescending = (a, b) => {
-    a = new Date(a.date);
-    b = new Date(b.date);
-        
-    return a > b ? -1 : (a < b ? 1 : 0);
+function convert_item(_item) {
+    const item = {
+        user: {
+            id: _item.user.id_str,
+            screen_name: _item.user.screen_name,
+            name: _item.user.name
+        },
+        id: _item.id_str,
+        text: Autolinker.link(_item.full_text, {
+            hashtag: 'twitter',
+            mention: 'twitter'
+        }),
+        favourites: _item.favorite_count,
+        retweets: _item.retweet_count,
+        date: new Date(_item.created_at).toISOString(),
+    };
+
+    if (_item.extended_entities && _item.extended_entities.media) {
+        item.thumbnail = _item.extended_entities.media[0].media_url_https;
+    }
+
+    if (_item.entities.symbols && _item.entities.symbols.length > 0) {
+        const regex = /\$[A-Za-z]{1,6}([._][A-Za-z]{1,2})?/g;
+        const matches = _item.full_text.match(regex);
+
+        if (matches) {
+            for (let i = 0; i < matches.length; i++) {
+                const enc = matches[i].replace('$', '%24');
+
+                item.text = item.text
+                    .replace(
+                        matches[i],
+                        '<a href="https://twitter.com/search?q=' + 
+                        enc + 
+                        '" target="_blank" rel="noopener noreferrer">' + 
+                        matches[i] + 
+                        '</a>');
+            }
+        }
+    }
+
+    item.text = item.text.replace(/<a href/g, '<a class="blue" href');
+
+    return item;
 }
 
 function rfc_encode(key) {
@@ -198,63 +241,4 @@ function skip(i, length, date) {
     } else {
         return false;
     }
-}
-
-function convert_item(_item) {
-    const item = {
-        user: {
-            id: _item.user.id_str,
-            screen_name: _item.user.screen_name,
-            name: _item.user.name
-        },
-        id: _item.id_str,
-        text: Autolinker.link(_item.full_text, {
-            hashtag: 'twitter',
-            mention: 'twitter'
-        }),
-        favourites: _item.favorite_count,
-        retweets: _item.retweet_count,
-        date: new Date(_item.created_at).toISOString(),
-    };
-
-    item.age = tweet_age(item.date);
-
-    if (_item.extended_entities && _item.extended_entities.media) {
-        item.thumbnail = _item.extended_entities.media[0].media_url_https;
-    }
-
-    if (_item.entities.symbols && _item.entities.symbols.length > 0) {
-        const regex = /\$[A-Za-z]{1,6}([._][A-Za-z]{1,2})?/g;
-        const matches = _item.full_text.match(regex);
-
-        if (matches) {
-            for (let i = 0; i < matches.length; i++) {
-                const enc = matches[i].replace('$', '%24');
-
-                item.text = item.text
-                    .replace(
-                        matches[i],
-                        '<a href="https://twitter.com/search?q=' + 
-                        enc + 
-                        '" target="_blank" rel="noopener noreferrer">' + 
-                        matches[i] + 
-                        '</a>');
-            }
-        }
-    }
-
-    item.text = item.text.replace(/<a href/g, '<a class="blue" href');
-
-    return item;
-}
-
-function tweet_age(date) {
-    return moment(date).fromNow(true)
-        .replace('an ', '1 ')
-        .replace('a ', '1 ')
-        .replace(/ (second)(s\b|\b)/, 's')
-        .replace(/ (minute)(s\b|\b)/, 'm')
-        .replace(/ (hour)(s\b|\b)/, 'h')
-        .replace(/ (day)(s\b|\b)/, 'd')
-        .replace(/ (year)(s\b|\b)/, 'y');
 }
