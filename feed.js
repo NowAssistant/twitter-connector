@@ -172,6 +172,7 @@ function convert_item(_item) {
         favourites: _item.favorite_count,
         retweets: _item.retweet_count,
         date: new Date(_item.created_at).toISOString(),
+        link: 'https://twitter.com/statuses/' + _item.id_str 
     };
 
     if (_item.extended_entities && _item.extended_entities.media) {
