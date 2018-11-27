@@ -1,23 +1,26 @@
+'use strict';
+
 const got = require('got');
 const Autolinker = require('autolinker');
 
 const dateDescending = (a, b) => {
     a = new Date(a.date);
     b = new Date(b.date);
-        
+
     return a > b ? -1 : (a < b ? 1 : 0);
-}
+};
 
 let startDate = null;
 let endDate = null;
 
+// eslint-disable-next-line no-unused-vars
 let action = null;
 let page = null;
 let pageSize = null;
 
-module.exports = async activity => {
+module.exports = async (activity) => {
     try {
-        const token = await access_token();
+        const token = await accessToken();
 
         if (token) {
             const accounts = activity.Context.connector.custom2.split(',');
@@ -25,17 +28,17 @@ module.exports = async activity => {
 
             let items = [];
 
-            configure_range();
+            configureRange();
 
             for (let i = 0; i < accounts.length; i++) {
-                const endpoint = 
-                    activity.Context.connector.endpoint + 
-                    '/statuses/user_timeline.json?screen_name=' + accounts[i] + 
+                const endpoint =
+                    activity.Context.connector.endpoint +
+                    '/statuses/user_timeline.json?screen_name=' + accounts[i] +
                     '&tweet_mode=extended';
 
                 const response = await got(endpoint, {
                     headers: {
-                        'Authorization': 'Bearer ' + token
+                        Authorization: 'Bearer ' + token
                     }
                 });
 
@@ -43,20 +46,20 @@ module.exports = async activity => {
 
                 for (let i = 0; i < json.length; i++) {
                     items.push(
-                        convert_item(json[i])
+                        convertItem(json[i])
                     );
                 }
             }
 
             for (let i = 0; i < hashtags.length; i++) {
-                const endpoint = 
-                    activity.Context.connector.endpoint + 
-                    '/search/tweets.json?q=%23' + hashtags[i] + 
+                const endpoint =
+                    activity.Context.connector.endpoint +
+                    '/search/tweets.json?q=%23' + hashtags[i] +
                     '&tweet_mode=extended';
 
                 const response = await got(endpoint, {
                     headers: {
-                        'Authorization': 'Bearer ' + token
+                        Authorization: 'Bearer ' + token
                     }
                 });
 
@@ -64,7 +67,7 @@ module.exports = async activity => {
 
                 for (let i = 0; i < json.statuses.length; i++) {
                     items.push(
-                        convert_item(json.statuses[i])
+                        convertItem(json.statuses[i])
                     );
                 }
             }
@@ -87,13 +90,13 @@ module.exports = async activity => {
             };
         }
     } catch (error) {
-        var m = error.message;  
+        let m = error.message;
 
         if (error.stack) {
             m = m + ': ' + error.stack;
         }
 
-        activity.Response.ErrorCode = 
+        activity.Response.ErrorCode =
             (error.response && error.response.statusCode) || 500;
 
         activity.Response.Data = {
@@ -103,16 +106,17 @@ module.exports = async activity => {
 
     return activity; // support cloud connectors
 
-    async function access_token() {
+    async function accessToken() {
+        //eslint-disable-next-line new-cap
         const credentials = new Buffer.from(
-            rfc_encode(activity.Context.connector.clientId) + ':' + 
-            rfc_encode(activity.Context.connector.custom1)
+            rfcEncode(activity.Context.connector.clientId) + ':' +
+            rfcEncode(activity.Context.connector.custom1)
         ).toString('base64');
 
         const opts = {
             method: 'POST',
             headers: {
-                'Authorization': 'Basic ' + credentials,
+                Authorization: 'Basic ' + credentials,
                 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
             },
             body: 'grant_type=client_credentials'
@@ -121,47 +125,47 @@ module.exports = async activity => {
         const response = await got('https://api.twitter.com/oauth2/token', opts);
         const json = JSON.parse(response.body);
 
-        if (json.token_type == 'bearer') {
+        if (json.token_type === 'bearer') {
             return json.access_token;
         }
 
         return null;
     }
-    
-    function configure_range() {
+
+    function configureRange() {
         if (activity.Request.Query.startDate) {
-            startDate = convert_date(activity.Request.Query.startDate);
+            startDate = convertDate(activity.Request.Query.startDate);
         }
 
         if (activity.Request.Query.endDate) {
-            endDate = convert_date(activity.Request.Query.endDate);
+            endDate = convertDate(activity.Request.Query.endDate);
         }
 
         if (activity.Request.Query.page && activity.Request.Query.pageSize) {
-            action = "firstpage"
-            page = parseInt(activity.Request.Query.page);
-            pageSize = parseInt(activity.Request.Query.pageSize);
+            action = 'firstpage';
+            page = parseInt(activity.Request.Query.page, 10);
+            pageSize = parseInt(activity.Request.Query.pageSize, 10);
 
             if (activity.Request.Data &&
                 activity.Request.Data.args &&
-                activity.Request.Data.args.atAgentAction == "nextpage") {
-                    action = "nextpage";
-                    page = parseInt(activity.Request.Data.args._page) || 2;
-                    pageSize = parseInt(activity.Request.Data.args._pageSize) || 20;
+                activity.Request.Data.args.atAgentAction === 'nextpage') {
+                action = 'nextpage';
+                page = parseInt(activity.Request.Data.args._page, 10) || 2;
+                pageSize = parseInt(activity.Request.Data.args._pageSize, 10) || 20;
             }
         } else if (activity.Request.Query.pageSize) {
-            pageSize = parseInt(acitivty.Request.Query.pageSize);
+            pageSize = parseInt(activity.Request.Query.pageSize, 10);
         } else {
             pageSize = 10;
         }
     }
 };
 
-function convert_item(_item) {
+function convertItem(_item) {
     const item = {
         user: {
             id: _item.user.id_str,
-            screen_name: _item.user.screen_name,
+            screenName: _item.user.screen_name,
             name: _item.user.name
         },
         id: _item.id_str,
@@ -172,7 +176,7 @@ function convert_item(_item) {
         favourites: _item.favorite_count,
         retweets: _item.retweet_count,
         date: new Date(_item.created_at).toISOString(),
-        link: 'https://twitter.com/statuses/' + _item.id_str 
+        link: 'https://twitter.com/statuses/' + _item.id_str
     };
 
     if (_item.extended_entities && _item.extended_entities.media) {
@@ -190,10 +194,10 @@ function convert_item(_item) {
                 item.text = item.text
                     .replace(
                         matches[i],
-                        '<a href="https://twitter.com/search?q=' + 
-                        enc + 
-                        '" target="_blank" rel="noopener noreferrer">' + 
-                        matches[i] + 
+                        '<a href="https://twitter.com/search?q=' +
+                        enc +
+                        '" target="_blank" rel="noopener noreferrer">' +
+                        matches[i] +
                         '</a>');
             }
         }
@@ -204,7 +208,7 @@ function convert_item(_item) {
     return item;
 }
 
-function rfc_encode(key) {
+function rfcEncode(key) {
     return encodeURIComponent(key)
         .replace(/!/g, '%21')
         .replace(/'/g, '%27')
@@ -213,7 +217,7 @@ function rfc_encode(key) {
         .replace(/\*/g, '%2A');
 }
 
-function convert_date(date) {
+function convertDate(date) {
     return new Date(
         date.substring(0, 4),
         date.substring(4, 6) - 1,
@@ -230,7 +234,8 @@ function skip(i, length, date) {
         return date > endDate;
     } else if (page && pageSize) {
         const startItem = Math.max(page - 1, 0) * pageSize;
-        const endItem = startItem + pageSize;
+
+        let endItem = startItem + pageSize;
 
         if (endItem > length) {
             endItem = length;
@@ -238,7 +243,7 @@ function skip(i, length, date) {
 
         return i < startItem || i >= endItem;
     } else if (pageSize) {
-        return i > pageSize - 1;  
+        return i > pageSize - 1;
     } else {
         return false;
     }
