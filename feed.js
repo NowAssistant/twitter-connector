@@ -203,7 +203,7 @@ function convertItem(_item) {
         }
     }
 
-    item.text = item.text.replace(/<a href/g, '<a class="blue" href');
+    item.text = item.text.replace(/<a href/g, '<a class="blue" at-click-action="select" href');
 
     return item;
 }
