@@ -169,20 +169,32 @@ function convertItem(_item) {
             name: _item.user.name
         },
         id: _item.id_str,
-        text: Autolinker.link(_item.full_text, {
-            hashtag: 'twitter',
-            mention: 'twitter'
-        }),
         favourites: _item.favorite_count,
         retweets: _item.retweet_count,
         date: new Date(_item.created_at).toISOString(),
         link: 'https://twitter.com/statuses/' + _item.id_str
     };
 
+    // Strip t.co URLs
+    if (_item.full_text.lastIndexOf(' https://t.co/') !== -1 &&
+        _item.full_text.charAt(_item.full_text.length-1) !== '…') {
+            item.text = _item.full_text.substring(0, _item.full_text.lastIndexOf(' https://t.co/'));
+    } else {
+        item.text = _item.full_text;
+    }
+
+    // Link autolinkable elements
+    item.text = Autolinker.link(item.text, {
+        hashtag: 'twitter',
+        mention: 'twitter'
+    });
+
+    // Add thumbnail url if present
     if (_item.extended_entities && _item.extended_entities.media) {
         item.thumbnail = _item.extended_entities.media[0].media_url_https;
     }
 
+    // Link symbol ($ financial) entities if present
     if (_item.entities.symbols && _item.entities.symbols.length > 0) {
         const regex = /\$[A-Za-z]{1,6}([._][A-Za-z]{1,2})?/g;
         const matches = _item.full_text.match(regex);
@@ -203,6 +215,7 @@ function convertItem(_item) {
         }
     }
 
+    // Add the at-click-action and blue colour class to links
     item.text = item.text.replace(/<a href/g, '<a class="blue" at-click-action="select" href');
 
     return item;
