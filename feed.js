@@ -7,7 +7,7 @@ const dateDescending = (a, b) => {
     a = new Date(a.date);
     b = new Date(b.date);
 
-    return a > b ? -1 : (a < b ? 1 : 0);
+    return a > b ? -1 : a < b ? 1 : 0;
 };
 
 let startDate = null;
@@ -45,9 +45,7 @@ module.exports = async (activity) => {
                 const json = JSON.parse(response.body);
 
                 for (let i = 0; i < json.length; i++) {
-                    items.push(
-                        convertItem(json[i])
-                    );
+                    items.push(convertItem(json[i]));
                 }
             }
 
@@ -66,13 +64,22 @@ module.exports = async (activity) => {
                 const json = JSON.parse(response.body);
 
                 for (let i = 0; i < json.statuses.length; i++) {
-                    items.push(
-                        convertItem(json.statuses[i])
-                    );
+                    items.push(convertItem(json.statuses[i]));
                 }
             }
 
-            items = items.sort(dateDescending);
+            // De-duplicate tweets to compensate API bug
+            const result = [];
+            const map = new Map();
+
+            for (const item of items) {
+                if (!map.has(item.id)) {
+                    map.set(item.id, true);
+                    result.push(item);
+                }
+            }
+
+            items = result.sort(dateDescending);
 
             activity.Response.Data.items = [];
 
@@ -107,9 +114,10 @@ module.exports = async (activity) => {
     return activity; // support cloud connectors
 
     async function accessToken() {
-        //eslint-disable-next-line new-cap
+    //eslint-disable-next-line new-cap
         const credentials = new Buffer.from(
-            rfcEncode(activity.Context.connector.clientId) + ':' +
+            rfcEncode(activity.Context.connector.clientId) +
+            ':' +
             rfcEncode(activity.Context.connector.custom1)
         ).toString('base64');
 
@@ -146,9 +154,11 @@ module.exports = async (activity) => {
             page = parseInt(activity.Request.Query.page, 10);
             pageSize = parseInt(activity.Request.Query.pageSize, 10);
 
-            if (activity.Request.Data &&
+            if (
+                activity.Request.Data &&
                 activity.Request.Data.args &&
-                activity.Request.Data.args.atAgentAction === 'nextpage') {
+                activity.Request.Data.args.atAgentAction === 'nextpage'
+            ) {
                 action = 'nextpage';
                 page = parseInt(activity.Request.Data.args._page, 10) || 2;
                 pageSize = parseInt(activity.Request.Data.args._pageSize, 10) || 20;
@@ -176,9 +186,14 @@ function convertItem(_item) {
     };
 
     // Strip t.co URLs
-    if (_item.full_text.lastIndexOf(' https://t.co/') !== -1 &&
-        _item.full_text.charAt(_item.full_text.length-1) !== '…') {
-            item.text = _item.full_text.substring(0, _item.full_text.lastIndexOf(' https://t.co/'));
+    if (
+        _item.full_text.lastIndexOf(' https://t.co/') !== -1 &&
+        _item.full_text.charAt(_item.full_text.length - 1) !== '…'
+    ) {
+        item.text = _item.full_text.substring(
+            0,
+            _item.full_text.lastIndexOf(' https://t.co/')
+        );
     } else {
         item.text = _item.full_text;
     }
@@ -203,20 +218,23 @@ function convertItem(_item) {
             for (let i = 0; i < matches.length; i++) {
                 const enc = matches[i].replace('$', '%24');
 
-                item.text = item.text
-                    .replace(
-                        matches[i],
-                        '<a href="https://twitter.com/search?q=' +
-                        enc +
-                        '" target="_blank" rel="noopener noreferrer">' +
-                        matches[i] +
-                        '</a>');
+                item.text = item.text.replace(
+                    matches[i],
+                    '<a href="https://twitter.com/search?q=' +
+                    enc +
+                    '" target="_blank" rel="noopener noreferrer">' +
+                    matches[i] +
+                    '</a>'
+                );
             }
         }
     }
 
     // Add the at-click-action and blue colour class to links
-    item.text = item.text.replace(/<a href/g, '<a class="blue" at-click-action="select" href');
+    item.text = item.text.replace(
+        /<a href/g,
+        '<a class="blue" at-click-action="select" href'
+    );
 
     return item;
 }
