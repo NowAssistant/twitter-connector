@@ -209,6 +209,11 @@ function convertItem(_item) {
         item.thumbnail = _item.extended_entities.media[0].media_url_https;
     }
 
+    // Add user avatar if present
+    if (_item.user.profile_image_url_https) {
+        item.user.avatar = _item.user.profile_image_url_https;
+    }
+
     // Link symbol ($ financial) entities if present
     if (_item.entities.symbols && _item.entities.symbols.length > 0) {
         const regex = /\$[A-Za-z]{1,6}([._][A-Za-z]{1,2})?/g;
