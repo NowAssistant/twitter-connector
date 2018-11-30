@@ -106,9 +106,15 @@ module.exports = async (activity) => {
         activity.Response.ErrorCode =
             (error.response && error.response.statusCode) || 500;
 
-        activity.Response.Data = {
-            ErrorText: m
-        };
+        if (error.response.statusCode === 404) {
+            activity.Response.Data = {
+                ErrorText: 'Response code 404: One or more of the source account names may be invalid.'
+            };
+        } else {
+            activity.Response.Data = {
+                ErrorText: m
+            };
+        }
     }
 
     return activity; // support cloud connectors
