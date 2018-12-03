@@ -26,15 +26,14 @@ module.exports = async (activity) => {
             const accounts = activity.Context.connector.custom2.split(',');
             const hashtags = activity.Context.connector.custom3.split(',');
 
-            let items = [];
-
-            configureRange();
+            const map = new Map();
+            const items = [];
 
             for (let i = 0; i < accounts.length; i++) {
                 const endpoint =
                     activity.Context.connector.endpoint +
                     '/statuses/user_timeline.json?screen_name=' + accounts[i] +
-                    '&tweet_mode=extended';
+                    '&tweet_mode=extended&count=10';
 
                 const response = await got(endpoint, {
                     headers: {
@@ -45,7 +44,15 @@ module.exports = async (activity) => {
                 const json = JSON.parse(response.body);
 
                 for (let i = 0; i < json.length; i++) {
-                    items.push(convertItem(json[i]));
+                    const item = convertItem(json[i]);
+
+                    // Check ID is unique to filter out returned duplicates
+                    // Identical text = RT, so only keep one of each RT
+                    if (!map.has(item.id)) {
+                        map.set(item.id, true);
+                        map.set(item.text, true);
+                        items.push(item);
+                    }
                 }
             }
 
@@ -53,7 +60,7 @@ module.exports = async (activity) => {
                 const endpoint =
                     activity.Context.connector.endpoint +
                     '/search/tweets.json?q=%23' + hashtags[i] +
-                    '&tweet_mode=extended';
+                    '&tweet_mode=extended&count=10';
 
                 const response = await got(endpoint, {
                     headers: {
@@ -64,29 +71,28 @@ module.exports = async (activity) => {
                 const json = JSON.parse(response.body);
 
                 for (let i = 0; i < json.statuses.length; i++) {
-                    items.push(convertItem(json.statuses[i]));
+                    const item = convertItem(json.statuses[i]);
+
+                    // Check ID is unique to filter out returned duplicates
+                    // Identical text = RT, so only keep one of each RT
+                    if (!map.has(item.id) && !map.has(item.text)) {
+                        map.set(item.id, true);
+                        map.set(item.text, true);
+                        items.push(item);
+                    }
                 }
             }
 
-            // De-duplicate tweets to compensate API bug
-            const result = [];
-            const map = new Map();
-
-            for (const item of items) {
-                if (!map.has(item.id)) {
-                    map.set(item.id, true);
-                    result.push(item);
-                }
-            }
-
-            items = result.sort(dateDescending);
+            const sorted = items.sort(dateDescending);
 
             activity.Response.Data.items = [];
 
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
+            configureRange();
 
-                if (!skip(i, items.length, new Date(item.date))) {
+            for (let i = 0; i < sorted.length; i++) {
+                const item = sorted[i];
+
+                if (!skip(i, sorted.length, item.date)) {
                     activity.Response.Data.items.push(item);
                 }
             }
@@ -120,8 +126,7 @@ module.exports = async (activity) => {
     return activity; // support cloud connectors
 
     async function accessToken() {
-    //eslint-disable-next-line new-cap
-        const credentials = new Buffer.from(
+        const credentials = Buffer.from(
             rfcEncode(activity.Context.connector.clientId) +
             ':' +
             rfcEncode(activity.Context.connector.custom1)
@@ -267,7 +272,9 @@ function convertDate(date) {
     );
 }
 
-function skip(i, length, date) {
+function skip(index, count, date) {
+    date = new Date(date);
+
     if (startDate && endDate) {
         return date < startDate || date > endDate;
     } else if (startDate) {
@@ -279,13 +286,13 @@ function skip(i, length, date) {
 
         let endItem = startItem + pageSize;
 
-        if (endItem > length) {
-            endItem = length;
+        if (endItem > count) {
+            endItem = count;
         }
 
-        return i < startItem || i >= endItem;
+        return index < startItem || index >= endItem;
     } else if (pageSize) {
-        return i > pageSize - 1;
+        return index > pageSize - 1;
     } else {
         return false;
     }
