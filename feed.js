@@ -12,8 +12,6 @@ const dateDescending = (a, b) => {
 
 let startDate = null;
 let endDate = null;
-
-// eslint-disable-next-line no-unused-vars
 let action = null;
 let page = null;
 let pageSize = null;
@@ -96,6 +94,12 @@ module.exports = async (activity) => {
                     activity.Response.Data.items.push(item);
                 }
             }
+
+            activity.Response.Data._startDate = startDate;
+            activity.Response.Data._endDate = endDate;
+            activity.Response.Data._action = action;
+            activity.Response.Data._page = page;
+            activity.Response.Data._pageSize = pageSize;
         } else {
             activity.Response.ErrorCode = 403;
             activity.Response.Data = {
