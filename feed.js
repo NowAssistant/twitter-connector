@@ -53,6 +53,10 @@ module.exports = async (activity) => {
                     map.set(item.id_str, true);
                     map.set(item.full_text, true);
                 }
+
+                if (activity.Response.Data.items.length >= pageSize) {
+                    break;
+                }
             }
 
             activity.Response.Data._action = action;
