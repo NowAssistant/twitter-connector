@@ -3,15 +3,6 @@
 const got = require('got');
 const Autolinker = require('autolinker');
 
-const dateDescending = (a, b) => {
-    a = new Date(a.date);
-    b = new Date(b.date);
-
-    return a > b ? -1 : a < b ? 1 : 0;
-};
-
-let startDate = null;
-let endDate = null;
 let action = null;
 let page = null;
 let pageSize = null;
@@ -21,82 +12,49 @@ module.exports = async (activity) => {
         const token = await accessToken();
 
         if (token) {
-            const accounts = activity.Context.connector.custom2.split(',');
-            const hashtags = activity.Context.connector.custom3.split(',');
+            const accounts = 'from%3A' + activity.Context.connector.custom2
+                .split(',')
+                .join('+OR+from%3A');
 
+            const hashtags = '%23' + activity.Context.connector.custom3
+                .split(',')
+                .join('+OR+%23');
+
+            const endpoint =
+                activity.Context.connector.endpoint +
+                '/search/tweets.json?q=' + accounts + '+OR+' + hashtags +
+                '&tweet_mode=extended&count=100';
+
+            const response = await got(endpoint, {
+                headers: {
+                    Authorization: 'Bearer ' + token
+                }
+            });
+
+            const json = JSON.parse(response.body);
             const map = new Map();
-            const items = [];
-
-            for (let i = 0; i < accounts.length; i++) {
-                const endpoint =
-                    activity.Context.connector.endpoint +
-                    '/statuses/user_timeline.json?screen_name=' + accounts[i] +
-                    '&tweet_mode=extended&count=10';
-
-                const response = await got(endpoint, {
-                    headers: {
-                        Authorization: 'Bearer ' + token
-                    }
-                });
-
-                const json = JSON.parse(response.body);
-
-                for (let i = 0; i < json.length; i++) {
-                    const item = convertItem(json[i]);
-
-                    // Check ID is unique to filter out returned duplicates
-                    // Identical text = RT, so only keep one of each RT
-                    if (!map.has(item.id)) {
-                        map.set(item.id, true);
-                        map.set(item.text, true);
-                        items.push(item);
-                    }
-                }
-            }
-
-            for (let i = 0; i < hashtags.length; i++) {
-                const endpoint =
-                    activity.Context.connector.endpoint +
-                    '/search/tweets.json?q=%23' + hashtags[i] +
-                    '&tweet_mode=extended&count=10';
-
-                const response = await got(endpoint, {
-                    headers: {
-                        Authorization: 'Bearer ' + token
-                    }
-                });
-
-                const json = JSON.parse(response.body);
-
-                for (let i = 0; i < json.statuses.length; i++) {
-                    const item = convertItem(json.statuses[i]);
-
-                    // Check ID is unique to filter out returned duplicates
-                    // Identical text = RT, so only keep one of each RT
-                    if (!map.has(item.id) && !map.has(item.text)) {
-                        map.set(item.id, true);
-                        map.set(item.text, true);
-                        items.push(item);
-                    }
-                }
-            }
-
-            const sorted = items.sort(dateDescending);
-
-            activity.Response.Data.items = [];
 
             configureRange();
 
-            for (let i = 0; i < sorted.length; i++) {
-                const item = sorted[i];
+            activity.Response.Data.items = [];
 
-                if (!skip(i, sorted.length, item.date)) {
-                    activity.Response.Data.items.push(item);
+            for (let i = 0; i < json.statuses.length; i++) {
+                const item = json.statuses[i];
+
+                if (
+                    !map.has(item.id_str) &&
+                    !map.has(item.full_text) &&
+                    !skip(i, json.statuses.length)
+                ) {
+                    activity.Response.Data.items.push(
+                        convertItem(item)
+                    );
+
+                    map.set(item.id_str, true);
+                    map.set(item.full_text, true);
                 }
             }
 
-            activity.Response.Data._startDate = startDate;
-            activity.Response.Data._endDate = endDate;
             activity.Response.Data._action = action;
             activity.Response.Data._page = page;
             activity.Response.Data._pageSize = pageSize;
@@ -116,15 +74,9 @@ module.exports = async (activity) => {
         activity.Response.ErrorCode =
             (error.response && error.response.statusCode) || 500;
 
-        if (error.response.statusCode === 404) {
-            activity.Response.Data = {
-                ErrorText: 'Response code 404: One or more of the source account names may be invalid.'
-            };
-        } else {
-            activity.Response.Data = {
-                ErrorText: m
-            };
-        }
+        activity.Response.Data = {
+            ErrorText: m
+        };
     }
 
     return activity; // support cloud connectors
@@ -156,32 +108,18 @@ module.exports = async (activity) => {
     }
 
     function configureRange() {
-        if (activity.Request.Query.startDate) {
-            startDate = convertDate(activity.Request.Query.startDate);
-        }
+        action = 'firstpage';
+        page = parseInt(activity.Request.Query.page, 10) || 1;
+        pageSize = parseInt(activity.Request.Query.pageSize, 10) || 20;
 
-        if (activity.Request.Query.endDate) {
-            endDate = convertDate(activity.Request.Query.endDate);
-        }
-
-        if (activity.Request.Query.page && activity.Request.Query.pageSize) {
-            action = 'firstpage';
-            page = parseInt(activity.Request.Query.page, 10);
-            pageSize = parseInt(activity.Request.Query.pageSize, 10);
-
-            if (
-                activity.Request.Data &&
-                activity.Request.Data.args &&
-                activity.Request.Data.args.atAgentAction === 'nextpage'
-            ) {
-                action = 'nextpage';
-                page = parseInt(activity.Request.Data.args._page, 10) || 2;
-                pageSize = parseInt(activity.Request.Data.args._pageSize, 10) || 20;
-            }
-        } else if (activity.Request.Query.pageSize) {
-            pageSize = parseInt(activity.Request.Query.pageSize, 10);
-        } else {
-            pageSize = 10;
+        if (
+            activity.Request.Data &&
+            activity.Request.Data.args &&
+            activity.Request.Data.args.atAgentAction === 'nextpage'
+        ) {
+            action = 'nextpage';
+            page = parseInt(activity.Request.Data.args._page, 10) || 2;
+            pageSize = parseInt(activity.Request.Data.args._pageSize, 10) || 20;
         }
     }
 };
@@ -191,7 +129,8 @@ function convertItem(_item) {
         user: {
             id: _item.user.id_str,
             screenName: _item.user.screen_name,
-            name: _item.user.name
+            name: _item.user.name,
+            avatar: _item.user.profile_image_url_https
         },
         id: _item.id_str,
         favourites: _item.favorite_count,
@@ -200,7 +139,6 @@ function convertItem(_item) {
         link: 'https://twitter.com/statuses/' + _item.id_str
     };
 
-    // Strip t.co URLs
     if (
         _item.full_text.lastIndexOf(' https://t.co/') !== -1 &&
         _item.full_text.charAt(_item.full_text.length - 1) !== '…'
@@ -213,23 +151,15 @@ function convertItem(_item) {
         item.text = _item.full_text;
     }
 
-    // Link autolinkable elements
     item.text = Autolinker.link(item.text, {
         hashtag: 'twitter',
         mention: 'twitter'
     });
 
-    // Add thumbnail url if present
     if (_item.extended_entities && _item.extended_entities.media) {
         item.thumbnail = _item.extended_entities.media[0].media_url_https;
     }
 
-    // Add user avatar if present
-    if (_item.user.profile_image_url_https) {
-        item.user.avatar = _item.user.profile_image_url_https;
-    }
-
-    // Link symbol ($ financial) entities if present
     if (_item.entities.symbols && _item.entities.symbols.length > 0) {
         const regex = /\$[A-Za-z]{1,6}([._][A-Za-z]{1,2})?/g;
         const matches = _item.full_text.match(regex);
@@ -240,17 +170,13 @@ function convertItem(_item) {
 
                 item.text = item.text.replace(
                     matches[i],
-                    '<a href="https://twitter.com/search?q=' +
-                    enc +
-                    '" target="_blank" rel="noopener noreferrer">' +
-                    matches[i] +
-                    '</a>'
+                    '<a href="https://twitter.com/search?q=' + enc +
+                    '" target="_blank" rel="noopener noreferrer">' + matches[i] + '</a>'
                 );
             }
         }
     }
 
-    // Add the at-click-action and blue colour class to links
     item.text = item.text.replace(
         /<a href/g,
         '<a class="blue" at-click-action="select" href'
@@ -268,24 +194,8 @@ function rfcEncode(key) {
         .replace(/\*/g, '%2A');
 }
 
-function convertDate(date) {
-    return new Date(
-        date.substring(0, 4),
-        date.substring(4, 6) - 1,
-        date.substring(6, 8)
-    );
-}
-
-function skip(index, count, date) {
-    date = new Date(date);
-
-    if (startDate && endDate) {
-        return date < startDate || date > endDate;
-    } else if (startDate) {
-        return date < startDate;
-    } else if (endDate) {
-        return date > endDate;
-    } else if (page && pageSize) {
+function skip(index, count) {
+    if (page && pageSize) {
         const startItem = Math.max(page - 1, 0) * pageSize;
 
         let endItem = startItem + pageSize;
@@ -295,9 +205,7 @@ function skip(index, count, date) {
         }
 
         return index < startItem || index >= endItem;
-    } else if (pageSize) {
-        return index > pageSize - 1;
-    } else {
-        return false;
     }
+
+    return false;
 }
