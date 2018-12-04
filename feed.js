@@ -13,12 +13,10 @@ module.exports = async (activity) => {
 
         if (token) {
             const accounts = 'from%3A' + activity.Context.connector.custom2
-                .split(',')
-                .join('+OR+from%3A');
+                .replace(',', '+OR+from%3A');
 
             const hashtags = '%23' + activity.Context.connector.custom3
-                .split(',')
-                .join('+OR+%23');
+                .replace(',', '+OR+%23');
 
             const endpoint =
                 activity.Context.connector.endpoint +
