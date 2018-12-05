@@ -6,6 +6,8 @@ const Autolinker = require('autolinker');
 let action = null;
 let page = null;
 let pageSize = null;
+let startItem = null;
+let endItem = null;
 
 module.exports = async (activity) => {
     try {
@@ -36,24 +38,21 @@ module.exports = async (activity) => {
 
             activity.Response.Data.items = [];
 
-            for (let i = 0; i < json.statuses.length; i++) {
-                const item = json.statuses[i];
+            if (endItem >= json.statuses.length) {
+                endItem = json.statuses.length;
+            }
 
+            for (let i = startItem; i < endItem; i++) {
                 if (
-                    !map.has(item.id_str) &&
-                    !map.has(item.full_text) &&
-                    !skip(i, json.statuses.length)
+                    !map.has(json.statuses[i].id_str) &&
+                    !map.has(json.statuses[i].full_text)
                 ) {
                     activity.Response.Data.items.push(
-                        convertItem(item)
+                        convertItem(json.statuses[i])
                     );
 
-                    map.set(item.id_str, true);
-                    map.set(item.full_text, true);
-                }
-
-                if (activity.Response.Data.items.length >= pageSize) {
-                    break;
+                    map.set(json.statuses[i].id_str, true);
+                    map.set(json.statuses[i].full_text, true);
                 }
             }
 
@@ -112,17 +111,28 @@ module.exports = async (activity) => {
     function configureRange() {
         action = 'firstpage';
         page = parseInt(activity.Request.Query.page, 10) || 1;
-        pageSize = parseInt(activity.Request.Query.pageSize, 10) || 20;
+        pageSize = parseInt(activity.Request.Query.pageSize, 10) || 5;
 
         if (
             activity.Request.Data &&
             activity.Request.Data.args &&
             activity.Request.Data.args.atAgentAction === 'nextpage'
         ) {
-            action = 'nextpage';
             page = parseInt(activity.Request.Data.args._page, 10) || 2;
-            pageSize = parseInt(activity.Request.Data.args._pageSize, 10) || 20;
+            pageSize = parseInt(activity.Request.Data.args._pageSize, 10) || 5;
+            action = 'nextpage';
         }
+
+        if (page < 0) {
+            page = 1;
+        }
+
+        if (pageSize < 1 || pageSize > 99) {
+            pageSize = 5;
+        }
+
+        startItem = Math.max(page - 1, 0) * pageSize;
+        endItem = startItem + pageSize;
     }
 };
 
@@ -146,8 +156,7 @@ function convertItem(_item) {
         _item.full_text.charAt(_item.full_text.length - 1) !== '…'
     ) {
         item.text = _item.full_text.substring(
-            0,
-            _item.full_text.lastIndexOf(' https://t.co/')
+            0, _item.full_text.lastIndexOf(' https://t.co/')
         );
     } else {
         item.text = _item.full_text;
@@ -194,20 +203,4 @@ function rfcEncode(key) {
         .replace(/\(/g, '%28')
         .replace(/\)/g, '%29')
         .replace(/\*/g, '%2A');
-}
-
-function skip(index, count) {
-    if (page && pageSize) {
-        const startItem = Math.max(page - 1, 0) * pageSize;
-
-        let endItem = startItem + pageSize;
-
-        if (endItem > count) {
-            endItem = count;
-        }
-
-        return index < startItem || index >= endItem;
-    }
-
-    return false;
 }
