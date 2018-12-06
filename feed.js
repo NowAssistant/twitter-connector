@@ -74,9 +74,6 @@ module.exports = async (activity) => {
                 index++;
             }
 
-            console.log(json.statuses);
-            console.log(activity.Response.Data.items);
-
             activity.Response.Data._action = action;
             activity.Response.Data._page = page;
             activity.Response.Data._pageSize = pageSize;
