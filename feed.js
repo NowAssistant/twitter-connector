@@ -49,10 +49,12 @@ module.exports = async (activity) => {
                     continue;
                 }
 
-                if (pageSize - count >= json.statuses.length - count) {
+                if (pageSize - count <= json.statuses.length - count) {
                     activity.Response.Data.items.push(
                         convertItem(json.statuses[index])
                     );
+
+                    count++;
                 } else if (
                     !map.has(json.statuses[index].id_str) &&
                     !map.has(json.statuses[index].full_text)
@@ -71,6 +73,9 @@ module.exports = async (activity) => {
 
                 index++;
             }
+
+            console.log(json.statuses);
+            console.log(activity.Response.Data.items);
 
             activity.Response.Data._action = action;
             activity.Response.Data._page = page;
