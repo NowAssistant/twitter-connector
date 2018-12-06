@@ -16,10 +16,10 @@ module.exports = async (activity) => {
 
         if (token) {
             const accounts = 'from%3A' + activity.Context.connector.custom2
-                .replace(',', '+OR+from%3A');
+                .replace(/,/g, '+OR+from%3A');
 
             const hashtags = '%23' + activity.Context.connector.custom3
-                .replace(',', '+OR+%23');
+                .replace(/,/g, '+OR+%23');
 
             configureRange();
 
@@ -77,7 +77,10 @@ module.exports = async (activity) => {
             activity.Response.Data._action = action;
             activity.Response.Data._page = page;
             activity.Response.Data._pageSize = pageSize;
-            activity.Response.Data._maxId = lastItem.id_str;
+
+            if (lastItem && lastItem.id_str) {
+                activity.Response.Data._maxId = lastItem.id_str;
+            }
         } else {
             activity.Response.ErrorCode = 403;
             activity.Response.Data = {
