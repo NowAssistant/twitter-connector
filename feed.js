@@ -3,11 +3,12 @@
 const got = require('got');
 const Autolinker = require('autolinker');
 
+const DEFAULT_PAGE_SIZE = 5;
+
 let action = null;
 let page = null;
 let pageSize = null;
-let startItem = null;
-let endItem = null;
+let maxId = '';
 
 module.exports = async (activity) => {
     try {
@@ -20,10 +21,12 @@ module.exports = async (activity) => {
             const hashtags = '%23' + activity.Context.connector.custom3
                 .replace(',', '+OR+%23');
 
+            configureRange();
+
             const endpoint =
                 activity.Context.connector.endpoint +
                 '/search/tweets.json?q=' + accounts + '+OR+' + hashtags +
-                '&tweet_mode=extended&count=100';
+                '&tweet_mode=extended&count=' + (pageSize * 2) + maxId;
 
             const response = await got(endpoint, {
                 headers: {
@@ -34,31 +37,45 @@ module.exports = async (activity) => {
             const json = JSON.parse(response.body);
             const map = new Map();
 
-            configureRange();
-
             activity.Response.Data.items = [];
 
-            if (endItem >= json.statuses.length) {
-                endItem = json.statuses.length;
-            }
+            let count = 0;
+            let index = 0;
+            let lastItem = null;
 
-            for (let i = startItem; i < endItem; i++) {
-                if (
-                    !map.has(json.statuses[i].id_str) &&
-                    !map.has(json.statuses[i].full_text)
+            while (count < pageSize && index < json.statuses.length) {
+                if (maxId !== '' && index === 0) {
+                    index++;
+                    continue;
+                }
+
+                if (pageSize - count >= json.statuses.length - count) {
+                    activity.Response.Data.items.push(
+                        convertItem(json.statuses[index])
+                    );
+                } else if (
+                    !map.has(json.statuses[index].id_str) &&
+                    !map.has(json.statuses[index].full_text)
                 ) {
                     activity.Response.Data.items.push(
-                        convertItem(json.statuses[i])
+                        convertItem(json.statuses[index])
                     );
 
-                    map.set(json.statuses[i].id_str, true);
-                    map.set(json.statuses[i].full_text, true);
+                    map.set(json.statuses[index].id_str, true);
+                    map.set(json.statuses[index].full_text, true);
+
+                    count++;
                 }
+
+                lastItem = json.statuses[index];
+
+                index++;
             }
 
             activity.Response.Data._action = action;
             activity.Response.Data._page = page;
             activity.Response.Data._pageSize = pageSize;
+            activity.Response.Data._maxId = lastItem.id_str;
         } else {
             activity.Response.ErrorCode = 403;
             activity.Response.Data = {
@@ -111,28 +128,28 @@ module.exports = async (activity) => {
     function configureRange() {
         action = 'firstpage';
         page = parseInt(activity.Request.Query.page, 10) || 1;
-        pageSize = parseInt(activity.Request.Query.pageSize, 10) || 5;
+        pageSize = parseInt(activity.Request.Query.pageSize, 10) || DEFAULT_PAGE_SIZE;
 
         if (
             activity.Request.Data &&
             activity.Request.Data.args &&
             activity.Request.Data.args.atAgentAction === 'nextpage'
         ) {
-            page = parseInt(activity.Request.Data.args._page, 10) || 2;
-            pageSize = parseInt(activity.Request.Data.args._pageSize, 10) || 5;
             action = 'nextpage';
+            page = parseInt(activity.Request.Data.args._page, 10) || 2;
+            pageSize =
+                parseInt(activity.Request.Data.args._pageSize, 10) || DEFAULT_PAGE_SIZE;
+
+            maxId = '&max_id=' + activity.Request.Data.args._maxId;
         }
 
-        if (page < 0) {
+        if (page < 1) {
             page = 1;
         }
 
         if (pageSize < 1 || pageSize > 99) {
-            pageSize = 5;
+            pageSize = DEFAULT_PAGE_SIZE;
         }
-
-        startItem = Math.max(page - 1, 0) * pageSize;
-        endItem = startItem + pageSize;
     }
 };
 
