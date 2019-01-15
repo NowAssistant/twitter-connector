@@ -3,7 +3,7 @@
 const got = require('got');
 const Autolinker = require('autolinker');
 
-const DEFAULT_PAGE_SIZE = 5;
+const DEFAULT_PAGE_SIZE = 50;
 
 let action = null;
 let page = null;
@@ -49,7 +49,7 @@ module.exports = async (activity) => {
                     continue;
                 }
 
-                if (pageSize - count <= json.statuses.length - count) {
+                if (pageSize - count === json.statuses.length - count) {
                     activity.Response.Data.items.push(
                         convertItem(json.statuses[index])
                     );
